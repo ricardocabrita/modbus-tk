@@ -20,6 +20,7 @@ from modbus_tk.modbus import (
 )
 from modbus_tk.hooks import call_hooks
 from modbus_tk import utils
+import RPi.GPIO as GPIO
 
 
 class RtuQuery(Query):
@@ -162,6 +163,11 @@ class RtuServer(Server):
         interframe_multiplier: 3.5 by default
         interchar_multiplier: 1.5 by default
         """
+        self.DE = 24
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.DE, GPIO.OUT)
+        GPIO.output(self.DE, GPIO.LOW)
+
         interframe_multiplier = kwargs.pop('interframe_multiplier', 3.5)
         interchar_multiplier = kwargs.pop('interchar_multiplier', 1.5)
 
@@ -177,6 +183,7 @@ class RtuServer(Server):
 
     def close(self):
         """close the serial communication"""
+        GPIO.cleanup()
         if self._serial.is_open:
             call_hooks("modbus_rtu.RtuServer.before_close", (self, ))
             self._serial.close()
@@ -230,21 +237,27 @@ class RtuServer(Server):
 
             # parse the request
             if request:
-
+		LOGGER.info("Got a request with %d bytes", len(request))
                 retval = call_hooks("modbus_rtu.RtuServer.after_read", (self, request))
                 if retval is not None:
                     request = retval
 
                 response = self._handle(request)
+		LOGGER.info("Response is %s", ":".join("{:02x}".format(ord(c)) for c in response))
 
                 # send back the response
                 retval = call_hooks("modbus_rtu.RtuServer.before_write", (self, response))
                 if retval is not None:
+		    LOGGER.info("Got a retval of %s", retval)
                     response = retval
 
                 if response:
-                    self._serial.write(response)
-                    time.sleep(self.get_timeout())
+		   if len(response) > 5:
+		    	LOGGER.info("Sending reply with %d bytes", len(response))
+		    	GPIO.output(self.DE, GPIO.HIGH)
+                    	self._serial.write(response)
+                    	time.sleep(0.0006*(len(response)+2))
+		    	GPIO.output(self.DE, GPIO.LOW)
 
                 call_hooks("modbus_rtu.RtuServer.after_write", (self, response))
 
