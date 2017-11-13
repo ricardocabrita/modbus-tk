@@ -245,26 +245,26 @@ class RtuServer(Server):
 
             # parse the request
             if request:
-		        LOGGER.info("Got a request with %d bytes", len(request))
+		LOGGER.info("Got a request with %d bytes", len(request))
                 retval = call_hooks("modbus_rtu.RtuServer.after_read", (self, request))
                 if retval is not None:
                     request = retval
 
                 response = self._handle(request)
-		        LOGGER.info("Response is %s", ":".join("{:02x}".format(ord(c)) for c in response))
+		LOGGER.info("Response is %s", ":".join("{:02x}".format(ord(c)) for c in response))
 
                 # send back the response
                 retval = call_hooks("modbus_rtu.RtuServer.before_write", (self, response))
                 if retval is not None:
-		            LOGGER.info("Got a retval of %s", retval)
+		    LOGGER.info("Got a retval of %s", retval)
                     response = retval
 
                 if response:
 		   if len(response) > 5:
 		    	LOGGER.info("Sending reply with %d bytes", len(response))
 		    	GPIO.output(self.DE, GPIO.HIGH)
-                self._serial.write(response)
-                time.sleep(0.0006*(len(response)+2))
+                        self._serial.write(response)
+                        time.sleep(0.0006*(len(response)+2))
 		    	GPIO.output(self.DE, GPIO.LOW)
 
                 call_hooks("modbus_rtu.RtuServer.after_write", (self, response))
