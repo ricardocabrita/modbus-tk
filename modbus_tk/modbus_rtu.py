@@ -88,6 +88,11 @@ class RtuMaster(Master):
 
     def __init__(self, serial, interchar_multiplier=1.5, interframe_multiplier=3.5, t0=None):
         """Constructor. Pass the pyserial.Serial object"""
+        self.DE = 24
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.DE, GPIO.OUT)
+        GPIO.output(self.DE, GPIO.LOW)
+
         self._serial = serial
         LOGGER.info("RtuMaster %s is %s", self._serial.name, "opened" if self._serial.is_open else "closed")
         super(RtuMaster, self).__init__(self._serial.timeout)
@@ -126,7 +131,10 @@ class RtuMaster(Master):
         self._serial.reset_input_buffer()
         self._serial.reset_output_buffer()
 
+        GPIO.output(self.DE, GPIO.HIGH)
         self._serial.write(request)
+        time.sleep(0.0006*(len(request)+2))
+        GPIO.output(self.DE, GPIO.LOW)
 
     def _recv(self, expected_length=-1):
         """Receive the response from the slave"""
@@ -237,26 +245,26 @@ class RtuServer(Server):
 
             # parse the request
             if request:
-		LOGGER.info("Got a request with %d bytes", len(request))
+		        LOGGER.info("Got a request with %d bytes", len(request))
                 retval = call_hooks("modbus_rtu.RtuServer.after_read", (self, request))
                 if retval is not None:
                     request = retval
 
                 response = self._handle(request)
-		LOGGER.info("Response is %s", ":".join("{:02x}".format(ord(c)) for c in response))
+		        LOGGER.info("Response is %s", ":".join("{:02x}".format(ord(c)) for c in response))
 
                 # send back the response
                 retval = call_hooks("modbus_rtu.RtuServer.before_write", (self, response))
                 if retval is not None:
-		    LOGGER.info("Got a retval of %s", retval)
+		            LOGGER.info("Got a retval of %s", retval)
                     response = retval
 
                 if response:
 		   if len(response) > 5:
 		    	LOGGER.info("Sending reply with %d bytes", len(response))
 		    	GPIO.output(self.DE, GPIO.HIGH)
-                    	self._serial.write(response)
-                    	time.sleep(0.0006*(len(response)+2))
+                self._serial.write(response)
+                time.sleep(0.0006*(len(response)+2))
 		    	GPIO.output(self.DE, GPIO.LOW)
 
                 call_hooks("modbus_rtu.RtuServer.after_write", (self, response))
